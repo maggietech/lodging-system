@@ -1,0 +1,61 @@
+type GuestRequest = record {
+  id : text;
+  status : text;
+  details : text;
+  created_date : nat64;
+  guest_id : text;
+};
+type Payment = record {
+  id : text;
+  status : text;
+  updated_at : opt nat64;
+  reservation_id : text;
+  amount : text;
+  created_date : nat64;
+};
+type PaymentResponse = record { msg : text; amount : float64 };
+type ReservationPayload = record {
+  room_id : text;
+  check_out_date : nat64;
+  check_in_date : nat64;
+  house_id : text;
+  guest_id : text;
+};
+type Room = record {
+  id : text;
+  is_booked : bool;
+  updated_at : opt nat64;
+  "type" : text;
+  house_id : text;
+  room_number : text;
+  price : text;
+  created_date : nat64;
+};
+type RoomPayload = record {
+  "type" : text;
+  house_id : text;
+  room_number : text;
+  price : text;
+};
+type _AzleResult = variant { Ok : vec Room; Err : text };
+type _AzleResult_1 = variant { Ok : vec GuestRequest; Err : text };
+type _AzleResult_2 = variant { Ok : vec Payment; Err : text };
+service : () -> {
+  addGuest : (text, text, text) -> (text);
+  addRoom : (RoomPayload) -> (text);
+  checkOutAndPay : (text, text) -> (PaymentResponse);
+  deleteRoom : (text) -> (text);
+  getAvailableRooms : (text) -> (_AzleResult) query;
+  getGuestRequestsByGuestId : (text) -> (_AzleResult_1) query;
+  getPaymentHistory : (text) -> (_AzleResult_2) query;
+  initHouse : (text, text) -> (text);
+  makePayment : (text, text) -> (PaymentResponse);
+  makeReservation : (ReservationPayload) -> (text);
+  searchAvailableRoomsByDateRange : (text, nat64, nat64) -> (_AzleResult) query;
+  searchAvailableRoomsByPriceRange : (text, text, text) -> (_AzleResult) query;
+  searchAvailableRoomsByType : (text, text) -> (_AzleResult) query;
+  submitGuestRequest : (text, text) -> (text);
+  updateGuest : (text, text, text, text) -> (text);
+  updateGuestRequestStatus : (text, text) -> (text);
+  updateRoom : (text, RoomPayload) -> (text);
+}

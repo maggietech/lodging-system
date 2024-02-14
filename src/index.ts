@@ -1,6 +1,7 @@
 // Importing necessary modules from the 'azle' library and 'uuid' library
-import { $query, $update, Record, StableBTreeMap, Vec, match, Result, nat64, ic, Opt, Principal } from 'azle';
+import { $query, $update, Record, StableBTreeMap, Vec, match, Result, nat64, ic, Opt, Principal, Variant, text, Ok, Err } from 'azle';
 import { v4 as uuidv4 } from "uuid";
+import * as crypto from crypto;
 
 // Defining record types for different entities
 
@@ -85,6 +86,26 @@ type PaymentResponse = Record<{
   amount: number; // Amount of the payment
 }>;
 
+const Error = Variant({
+  InputValidationError: text,
+  InvalidState: text
+});
+type Error = typeof Error.tsType;
+
+function encryptData(data: text): string {
+  const cipher = crypto.createCipher(`aes-256-cbc`, `MY_SECRET_KEY`);
+  let encrypted = cipher.update(data, `hex`, 'utf8');
+  encrypted += cipher.final(`utf8`);
+  return encrypted;
+}
+
+function decryptData(data: text): string {
+  const decipher = crypto.createCipher(`aes-256-cbc`, `MY_SECRET_KEY`);
+  let decrypted = decipher.update(data, 'hex', 'utf8');
+  decrypted += decipher.final(`utf8`);
+  return decrypted;
+}
+
 // Creating instances of StableBTreeMap for each entity type
 const houseStorage = new StableBTreeMap<string, House>(0, 44, 512);
 const roomStorage = new StableBTreeMap<string, Room>(1, 44, 512);
@@ -94,9 +115,9 @@ const paymentStorage = new StableBTreeMap<string, Payment>(4, 44, 512);
 
 // Initialization of houseStorage
 $update;
-export function initHouse(name: string, address: string): string {
+export function initHouse(name: string, address: string): Result<text, Error> {
   if (!houseStorage.isEmpty()) {
-    return `House has already been initialized`;
+    return Err({InvalidState: `House has already been initialized`});
   }
   const house = {
     id: uuidv4(),
@@ -107,15 +128,15 @@ export function initHouse(name: string, address: string): string {
     updated_at: Opt.None,
   };
   houseStorage.insert(house.id, house);
-  return house.id;
+  return Ok(house.id);
 }
 
 $query;
 // Function to get available rooms in a house
-export function getAvailableRooms(houseId: string): Result<Vec<Room>, string> {
+export function getAvailableRooms(houseId: string): Result<Vec<Room>, Error> {
   const availableRooms = roomStorage.values().filter((room) => !room.is_booked && room.house_id == houseId);
   if (availableRooms.length == 0) {
-    return Result.Err("No available rooms in this house currently");
+    return Result.Err({InvalidState: "No available rooms in this house currently"});
   }
   return Result.Ok(availableRooms);
 }
@@ -124,7 +145,11 @@ export function getAvailableRooms(houseId: string): Result<Vec<Room>, string> {
 
 // Function to add a new room to a house
 $update;
-export function addRoom(payload: RoomPayload): string {
+export function addRoom(payload: RoomPayload): Result(text, Error) {
+  if((payload.house_id+'').trim() === '' || (payload.room_number+'').trim() === '' || (payload.type+'').trim() === '' || (payload.price+'').trim() === ''){
+    return Err({InvalidInput: "Empty values are not accepted."});
+  }
+
   const room = {
     id: uuidv4(),
     house_id: payload.house_id,
@@ -136,12 +161,16 @@ export function addRoom(payload: RoomPayload): string {
     updated_at: Opt.None,
   };
   roomStorage.insert(room.id, room);
-  return room.id;
+  return Ok(room.id);
 }
 
 // Function to make a reservation for a room
 $update;
-export function makeReservation(payload: ReservationPayload): string {
+export function makeReservation(payload: ReservationPayload): Result<text, Error> {
+  if((payload.house_id+'').trim() === '' || (payload.room_id+'').trim() === '' || (payload.guest_id+'').trim() === ''){
+    return Err({InvalidInput: "Empty values are not accepted."});
+  }
+
   const reservation = {
     id: uuidv4(),
     house_id: payload.house_id,
@@ -162,7 +191,7 @@ export function makeReservation(payload: ReservationPayload): string {
     room.is_booked = true;
     roomStorage.insert(room.id, room);
   }
-  return `Reservation ID: ${reservation.id} made successfully`;
+  return Ok(`Reservation ID: ${reservation.id} made successfully`);
 }
 
 // Function to check out and pay for a reservation
@@ -295,7 +324,7 @@ $query;
 export function getPaymentHistory(reservationId: string): Result<Vec<Payment>, string> {
   const payments = paymentStorage.values().filter((payment) => payment.reservation_id == reservationId);
   if (payments.length === 0) {
-    return Result.Err("No payments found for this reservation");
+    return Result.Err({InvalidState: "No payments found for this reservation"});
   }
   return Result.Ok(payments);
 }
@@ -310,7 +339,7 @@ export function searchAvailableRoomsByDateRange(houseId: string, startDate: nat6
     room.created_date <= endDate
   );
   if (availableRooms.length === 0) {
-    return Result.Err("No available rooms in this house for the specified date range");
+    return Result.Err({InvalidState: "No available rooms in this house for the specified date range"});
   }
   return Result.Ok(availableRooms);
 }
@@ -324,7 +353,7 @@ export function searchAvailableRoomsByType(houseId: string, roomType: string): R
     room.type === roomType
   );
   if (availableRooms.length === 0) {
-    return Result.Err("No available rooms in this house with the specified type");
+    return Result.Err({InvalidState: "No available rooms in this house with the specified type"});
   }
   return Result.Ok(availableRooms);
 }
@@ -339,7 +368,7 @@ export function searchAvailableRoomsByPriceRange(houseId: string, minPrice: stri
     parseFloat(room.price) <= parseFloat(maxPrice)
   );
   if (availableRooms.length === 0) {
-    return Result.Err("No available rooms in this house within the specified price range");
+    return Result.Err({InvalidState: "No available rooms in this house within the specified price range"});
   }
   return Result.Ok(availableRooms);
 }
@@ -375,7 +404,7 @@ type GuestRequest = Record<{
   export function getGuestRequestsByGuestId(guestId: string): Result<Vec<GuestRequest>, string> {
     const guestRequests = guestRequestStorage.values().filter((request) => request.guest_id === guestId);
     if (guestRequests.length === 0) {
-      return Result.Err("No requests found for this guest");
+      return Result.Err({InvalidState: "No requests found for this guest"});
     }
     return Result.Ok(guestRequests);
   }

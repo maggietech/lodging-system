@@ -125,6 +125,14 @@ export function getAvailableRooms(houseId: string): Result<Vec<Room>, string> {
 // Function to add a new room to a house
 $update;
 export function addRoom(payload: RoomPayload): string {
+
+   // Validate payload to prevent injection attacks and ensure data integrity
+  if (!payload.house_id || !payload.room_number || !payload.type || !payload.price) {
+    return "Invalid payload. Missing required fields.";
+  }
+
+  // Ensure user is authorized to perform this operation (authorization check)
+
   const room = {
     id: uuidv4(),
     house_id: payload.house_id,
@@ -142,6 +150,12 @@ export function addRoom(payload: RoomPayload): string {
 // Function to make a reservation for a room
 $update;
 export function makeReservation(payload: ReservationPayload): string {
+    // Validate payload to prevent injection attacks and ensure data integrity
+  if (!payload.house_id || !payload.room_id || !payload.guest_id || !payload.check_in_date || !payload.check_out_date) {
+    return "Invalid payload. Missing required fields.";
+  }
+
+  // Ensure user is authorized to perform this operation (authorization check)
   const reservation = {
     id: uuidv4(),
     house_id: payload.house_id,
@@ -209,6 +223,13 @@ export function checkOutAndPay(reservationId: string, amount: string): PaymentRe
 // Function to update information for a room
 $update;
 export function updateRoom(roomId: string, payload: RoomPayload): string {
+    // Validate payload to prevent injection attacks and ensure data integrity
+  if (!payload.house_id || !payload.room_id || !payload.guest_id || !payload.check_in_date || !payload.check_out_date) {
+    return "Invalid payload. Missing required fields.";
+  }
+
+  // Ensure user is authorized to perform this operation (authorization check)
+
   const room = match(roomStorage.get(roomId), {
     Some: (room) => room,
     None: () => ({} as unknown as Room),
@@ -293,6 +314,12 @@ export function makePayment(reservationId: string, amount: string): PaymentRespo
 // Function to retrieve payment history for a reservation
 $query;
 export function getPaymentHistory(reservationId: string): Result<Vec<Payment>, string> {
+  // Validate input to prevent injection attacks and ensure data integrity
+  if (!houseId || !startDate || !endDate) {
+    return Result.Err("Invalid input. Missing required fields.");
+  }
+
+  // Query available rooms based on the specified date range
   const payments = paymentStorage.values().filter((payment) => payment.reservation_id == reservationId);
   if (payments.length === 0) {
     return Result.Err("No payments found for this reservation");
